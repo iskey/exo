@@ -162,6 +162,29 @@ class Node:
     inference_state: Optional[dict] = {},
   ) -> Optional[np.ndarray]:
     shard = self.get_current_shard(base_shard)
+    
+    # 运行时内存和加载验证 - 仅DEBUG>10时显示
+    if DEBUG >= 10:
+        print(f"\n🚀 === RUNTIME SLICE VERIFICATION ===")
+        print(f"🖥️  Node: {self.id}")
+        print(f"📊 Model: {shard.model_id}")
+        print(f"🧩 Loaded layers: {shard.start_layer}-{shard.end_layer}")
+        print(f"🎯 Layer count: {shard.get_layer_count()} / {base_shard.n_layers}")
+        
+        # 添加内存使用监控
+        try:
+            import psutil
+            process = psutil.Process()
+            memory_info = process.memory_info()
+            memory_mb = memory_info.rss / (1024 * 1024)
+            print(f"💾 Memory usage: {memory_mb:.2f} MB")
+        except:
+            print("💾 Memory monitoring: psutil not available")
+        
+        print("=" * 50)
+    elif DEBUG >= 2:
+        print(f"[DEBUG] Node {self.id} processing layers {shard.start_layer}-{shard.end_layer}")
+    
     start_time = time.perf_counter_ns()
     asyncio.create_task(
       self.broadcast_opaque_status(
@@ -465,7 +488,45 @@ class Node:
       index = self.get_partition_index()
     partitions = self.partitioning_strategy.partition(self.topology)
     shards = map_partitions_to_shards(partitions, base_shard.n_layers, base_shard.model_id)
-    return shards[index]
+    
+    current_shard = shards[index]
+    
+    # 详细日志记录分区分配 - 仅DEBUG>10时显示
+    if DEBUG >= 10:
+        print(f"\n🎯 === NODE SLICE ASSIGNMENT VERIFICATION ===")
+        print(f"🖥️  Node ID: {self.id}")
+        print(f"📊 Model: {base_shard.model_id}")
+        print(f"🧩 Total layers: {base_shard.n_layers}")
+        print(f"🔗 Partition index: {index}")
+        print(f"👥 Active nodes: {len(partitions)}")
+        
+        # 显示每个节点的详细分配
+        print("\n📋 COMPLETE PARTITION MAP:")
+        total_layers_assigned = 0
+        for i, (partition, shard) in enumerate(zip(partitions, shards)):
+            node_id = partition.node_id
+            layer_count = shard.get_layer_count()
+            percentage = (layer_count / base_shard.n_layers) * 100
+            total_layers_assigned += layer_count
+            
+            print(f"   {'✅' if node_id == self.id else '⏳'} Node {i}: {node_id}")
+            print(f"      Layers: {shard.start_layer}-{shard.end_layer} ({layer_count} layers, {percentage:.1f}%)")
+            print(f"      Memory weight: [{partition.start:.3f}, {partition.end:.3f})")
+        
+        current_percentage = (current_shard.get_layer_count() / base_shard.n_layers) * 100
+        
+        print(f"\n🎯 THIS NODE WILL LOAD:")
+        print(f"   Model: {base_shard.model_id}")
+        print(f"   Layers: {current_shard.start_layer}-{current_shard.end_layer}")
+        print(f"   Layer count: {current_shard.get_layer_count()} / {base_shard.n_layers}")
+        print(f"   Percentage: {current_percentage:.1f}%")
+        print(f"   Memory savings: {100 - current_percentage:.1f}% reduction per node")
+        print("=" * 60)
+    elif DEBUG >= 2:
+        # 简化的日志
+        print(f"[DEBUG] Node {self.id} assigned layers {current_shard.start_layer}-{current_shard.end_layer} ({current_shard.get_layer_count()}/{base_shard.n_layers} layers)")
+    
+    return current_shard
 
   async def update_peers(self, wait_for_peers: int = 0) -> bool:
     next_peers = await self.discovery.discover_peers(wait_for_peers)

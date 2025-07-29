@@ -13,6 +13,7 @@ from PIL import Image
 from io import BytesIO
 import base64
 import traceback
+import os
 
 import mlx.core as mx
 import mlx.nn as nn
@@ -118,6 +119,25 @@ def load_model_shard(
     # Try weight for back-compat
     weight_files = glob.glob(str(model_path/"weight*.safetensors"))
 
+  # 添加权重加载日志
+  if DEBUG >= 10:
+    print(f"\n=== Model Weight Loading Analysis ===")
+    print(f"Model path: {model_path}")
+    print(f"Shard: layers {shard.start_layer}-{shard.end_layer} (total: {shard.n_layers})")
+    print(f"Found weight files: {len(weight_files)}")
+    total_file_size = 0
+    for i, wf in enumerate(weight_files):
+      try:
+        file_size = os.path.getsize(wf)
+        total_file_size += file_size
+        size_mb = file_size / (1024 * 1024)
+        print(f"  {i+1}. {os.path.basename(wf)} ({size_mb:.2f} MB)")
+      except OSError:
+        print(f"  {i+1}. {os.path.basename(wf)} (size unknown)")
+    total_size_mb = total_file_size / (1024 * 1024)
+    print(f"Total weight files size: {total_size_mb:.2f} MB")
+    print("=" * 50)
+
   model_class, model_args_class = _get_classes(config=config)
 
   class ShardedModel(model_class):
@@ -153,12 +173,44 @@ def load_model_shard(
           layer_nums.add(layer_num)
       print(f"\"{wf.split('/')[-1]}\": {sorted(layer_nums)},")
 
-    weights.update(mx.load(wf))
+    # 加载权重文件
+    total_loaded_keys = 0
+    file_weights = mx.load(wf)
+    weights.update(file_weights)
+    total_loaded_keys += len(file_weights)
+    
+    if DEBUG >= 10:
+      print(f"Loaded {len(file_weights)} keys from {os.path.basename(wf)}")
 
-  
+  if DEBUG >= 10:
+    print(f"Total keys loaded before sanitize: {total_loaded_keys}")
 
   if hasattr(model, "sanitize"):
     weights = model.sanitize(weights)
+    if DEBUG >= 10:
+      print(f"Keys after sanitize: {len(weights)}")
+      print(f"Keys filtered out: {total_loaded_keys - len(weights)}")
+      
+      # 分析保留的权重
+      layer_weights = {}
+      other_weights = []
+      for key in weights.keys():
+        if key.startswith("model.layers."):
+          layer_num = int(key.split(".")[2])
+          if layer_num not in layer_weights:
+            layer_weights[layer_num] = 0
+          layer_weights[layer_num] += 1
+        else:
+          other_weights.append(key)
+      
+      print(f"Layers with weights: {sorted(layer_weights.keys())}")
+      print(f"Other weight keys: {len(other_weights)}")
+      if DEBUG >= 2:
+        for key in other_weights[:10]:  # 只显示前10个
+          print(f"  - {key}")
+        if len(other_weights) > 10:
+          print(f"  ... and {len(other_weights) - 10} more")
+  
   if DEBUG >= 8:
     print(f"\n|| {config=} ||\n")
 

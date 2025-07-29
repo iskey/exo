@@ -209,11 +209,50 @@ async def download_shard(shard: Shard, inference_engine_classname: str, on_progr
     raise ValueError(f"No repo found for {shard.model_id=} and inference engine {inference_engine_classname}")
 
   allow_patterns = await resolve_allow_patterns(shard, inference_engine_classname)
-  if DEBUG >= 2: print(f"Downloading {shard.model_id=} with {allow_patterns=}")
+  
+  # 详细的切片加载验证日志 - 仅DEBUG>10时显示
+  if DEBUG >= 10:
+    print(f"\n📦 === SLICE LOADING VERIFICATION ===")
+    print(f"🎯 Shard: {shard.model_id} layers {shard.start_layer}-{shard.end_layer}")
+    print(f"🖥️  Node: {inference_engine_classname}")
+    print(f"📊 Layer range: {shard.start_layer}-{shard.end_layer} ({shard.get_layer_count()} layers)")
+    print(f"🎯 Allow patterns: {allow_patterns}")
+  elif DEBUG >= 2:
+    print(f"[DEBUG] Processing shard {shard.model_id} layers {shard.start_layer}-{shard.end_layer} for {inference_engine_classname}")
 
   all_start_time = time.time()
   file_list = await fetch_file_list_with_cache(repo_id, revision)
   filtered_file_list = list(filter_repo_objects(file_list, allow_patterns=allow_patterns, key=lambda x: x["path"]))
+  
+  # 详细的下载验证日志 - 仅DEBUG>10时显示
+  if DEBUG >= 10:
+    print(f"\n📥 === DOWNLOAD VERIFICATION ===")
+    print(f"📁 Total files in repo: {len(file_list)}")
+    print(f"🎯 Files after slice filtering: {len(filtered_file_list)}")
+    
+    total_size = sum(f["size"] for f in filtered_file_list)
+    total_size_mb = total_size / (1024 * 1024)
+    full_repo_size = sum(f["size"] for f in file_list)
+    full_repo_size_mb = full_repo_size / (1024 * 1024)
+    
+    print(f"💾 Full repo size: {full_repo_size_mb:.2f} MB")
+    print(f"💾 This slice size: {total_size_mb:.2f} MB")
+    print(f"🎯 Size reduction: {((full_repo_size - total_size) / full_repo_size * 100):.1f}%")
+    
+    if filtered_file_list:
+      print(f"\n📋 FILES FOR THIS SLICE:")
+      for i, file in enumerate(filtered_file_list):
+        size_mb = file["size"] / (1024 * 1024)
+        print(f"   {i+1:2d}. 📄 {file['path']} ({size_mb:6.2f} MB)")
+    else:
+      print("⚠️  No files to download for this slice!")
+    
+    print("=" * 60)
+  elif DEBUG >= 2:
+    total_size = sum(f["size"] for f in filtered_file_list)
+    total_size_mb = total_size / (1024 * 1024)
+    print(f"[DEBUG] Downloading {len(filtered_file_list)} files, {total_size_mb:.2f} MB total")
+  
   file_progress: Dict[str, RepoFileProgressEvent] = {}
   def on_progress_wrapper(file: dict, curr_bytes: int, total_bytes: int):
     start_time = file_progress[file["path"]].start_time if file["path"] in file_progress else time.time()
@@ -231,9 +270,53 @@ async def download_shard(shard: Shard, inference_engine_classname: str, on_progr
   async def download_with_semaphore(file):
     async with semaphore:
       await download_file_with_retry(repo_id, revision, file["path"], target_dir, lambda curr_bytes, total_bytes: on_progress_wrapper(file, curr_bytes, total_bytes))
-  if not skip_download: await asyncio.gather(*[download_with_semaphore(file) for file in filtered_file_list])
+  if not skip_download: 
+    await asyncio.gather(*[download_with_semaphore(file) for file in filtered_file_list])
+    
+    # 下载完成后的验证日志 - 仅DEBUG>10时显示
+    if DEBUG >= 10:
+      print(f"\n✅ === DOWNLOAD COMPLETED VERIFICATION ===")
+      print(f"🎯 Shard: {shard.model_id} layers {shard.start_layer}-{shard.end_layer}")
+      print(f"📁 Files downloaded: {len(filtered_file_list)}")
+      
+      # 计算实际下载的总大小
+      actual_download_size = 0
+      for file in filtered_file_list:
+        file_path = target_dir/file["path"]
+        if await aios.path.exists(file_path):
+          size = (await aios.stat(file_path)).st_size
+          actual_download_size += size
+          size_mb = size / (1024 * 1024)
+          print(f"   📄 {file['path']}: {size_mb:.2f} MB ✅")
+        else:
+          print(f"   ❌ {file['path']}: Missing")
+      
+      actual_size_mb = actual_download_size / (1024 * 1024)
+      expected_size_mb = total_size / (1024 * 1024)
+      
+      print(f"\n💾 DOWNLOAD SUMMARY:")
+      print(f"   Expected: {expected_size_mb:.2f} MB")
+      print(f"   Actual:   {actual_size_mb:.2f} MB")
+      print(f"   Status:   {'✅ Complete' if abs(actual_download_size - total_size) < 1024 else '❌ Mismatch'}")
+      print("=" * 60)
+    elif DEBUG >= 2:
+      print(f"[DEBUG] Download completed for {shard.model_id} layers {shard.start_layer}-{shard.end_layer}")
+  
   final_repo_progress = calculate_repo_progress(shard, repo_id, revision, file_progress, all_start_time)
   on_progress.trigger_all(shard, final_repo_progress)
+  
+  # 最终验证 - 仅DEBUG>10时显示
+  if not skip_download and DEBUG >= 10:
+    print(f"\n🎉 === SLICE LOADING FINAL VERIFICATION ===")
+    print(f"🎯 Node: {inference_engine_classname}")
+    print(f"📊 Model: {shard.model_id}")
+    print(f"🧩 Layer range: {shard.start_layer}-{shard.end_layer}")
+    print(f"📁 Final path: {target_dir}")
+    print(f"✅ Slice loading completed successfully!")
+    print("=" * 60)
+  elif DEBUG >= 2 and not skip_download:
+    print(f"[DEBUG] Slice loading completed for {shard.model_id} layers {shard.start_layer}-{shard.end_layer}")
+  
   if gguf := next((f for f in filtered_file_list if f["path"].endswith(".gguf")), None):
     return target_dir/gguf["path"], final_repo_progress
   else:

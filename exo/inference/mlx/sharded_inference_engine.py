@@ -160,7 +160,18 @@ class MLXDynamicShardInferenceEngine(InferenceEngine):
   async def ensure_shard(self, shard: Shard):
     async with self._shard_lock:
       if self.shard == shard: return
+      
+      if DEBUG >= 10:
+        print(f"\n=== Inference Engine Shard Loading ===")
+        print(f"Current shard: {self.shard}")
+        print(f"Requested shard: {shard}")
+        print(f"Engine type: {self.__class__.__name__}")
+      
       model_path = await self.shard_downloader.ensure_shard(shard, self.__class__.__name__)
+      
+      if DEBUG >= 10:
+        print(f"Model path: {model_path}")
+      
       if self.shard != shard:
         model_shard = await asyncio.get_running_loop().run_in_executor(
           self._mlx_thread,
