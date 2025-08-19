@@ -112,7 +112,11 @@ class TinygradDynamicShardInferenceEngine(InferenceEngine):
       h = self.model.embed(x)
       state = self.poll_state(h, request_id)
       out = self.model.forward(h, **state)
-      self.states[request_id].start += x.shape[1]
+      
+      # 正常的累积逻辑，用于序列生成
+      if request_id in self.states:
+        self.states[request_id].start += x.shape[1]
+      
       return out.numpy()
     output_data = await asyncio.get_running_loop().run_in_executor(self.executor, wrap_infer)
     return output_data, inference_state
@@ -144,6 +148,9 @@ class TinygradDynamicShardInferenceEngine(InferenceEngine):
     if self.shard == shard:
       return
 
+    # 切换shard时清空所有缓存状态，避免状态污染
+    self.states.clear()
+    
     model_path = await self.shard_downloader.ensure_shard(shard, self.__class__.__name__)
 
     if self.shard != shard:
@@ -155,3 +162,23 @@ class TinygradDynamicShardInferenceEngine(InferenceEngine):
       self.tokenizer = await resolve_tokenizer(tokenizer_path)
       self.shard = shard
       self.model = model_shard
+
+  async def infer_prompt(self, request_id: str, shard: Shard, prompt: str, inference_state: Optional[dict] = None) -> tuple[np.ndarray, Optional[dict]]:
+    tokens = await self.encode(shard, prompt)
+    if shard.model_id != 'stable-diffusion-2-1-base':
+      x = tokens.reshape(1, -1)
+    else:
+      x = tokens
+    
+    # 为每个请求强制创建全新的KV缓存状态，避免任何缓存复用
+    self.states[request_id] = make_prompt_state(x, self.model)
+    
+    # 验证KV缓存确实是新的
+    if hasattr(self, 'model') and self.model is not None:
+      cache_sum = sum(c.numpy().sum() for c in self.states[request_id].cache)
+      if abs(cache_sum) > 1e-20:  # 应该有微小差异，但应该是接近零的
+        print(f"[DEBUG] New KV cache created for {request_id}, cache_sum={cache_sum}")
+    
+    output_data, inference_state = await self.infer_tensor(request_id, shard, x, inference_state)
+
+    return output_data, inference_state

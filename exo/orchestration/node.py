@@ -147,6 +147,9 @@ class Node:
       if shard.model_id != 'stable-diffusion-2-1-base':
         self.buffered_token_output[request_id] = (self.buffered_token_output[request_id][0], True)
       self.outstanding_requests.pop(request_id)
+      # 清理已完成的请求的缓存，避免内存泄漏和缓存污染
+      if request_id in self.buffered_token_output:
+        del self.buffered_token_output[request_id]
     else:
       self.outstanding_requests[request_id] = "waiting"
       asyncio.create_task(self.forward_tensor(shard, forward, request_id, self.get_partition_index(offset = 1), inference_state))

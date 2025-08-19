@@ -127,9 +127,9 @@ def sample_logits(logits: Tensor, temp: float, k: int, p: float, af: float, ap: 
 
   # alpha sampling
   if af or ap:
-    if not hasattr(sample, "alpha_counter"):
-      setattr(sample, "alpha_counter", Tensor.zeros_like(logits, dtype=dtypes.int32).contiguous())
-    logits = logits - (sample.alpha_counter*af + (sample.alpha_counter > 0)*ap)
+    # 避免使用全局静态变量，为每次采样创建新的counter
+    alpha_counter = Tensor.zeros_like(logits, dtype=dtypes.int32).contiguous()
+    logits = logits - (alpha_counter*af + (alpha_counter > 0)*ap)
 
   # replace NaNs with -inf
   logits = (logits != logits).where(-float("inf"), logits)
@@ -159,9 +159,7 @@ def sample_logits(logits: Tensor, temp: float, k: int, p: float, af: float, ap: 
   else:
     output_token = t.multinomial()
 
-  # increase alpha counter
-  if af or ap:
-    sample.alpha_counter = (counter == output_token).where(sample.alpha_counter + 1, sample.alpha_counter)
+  # 移除alpha counter的更新逻辑，避免全局状态污染
 
   return output_token
 
