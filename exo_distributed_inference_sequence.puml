@@ -1,0 +1,63 @@
+@startuml
+
+actor User
+participant "ChatGPT API" as api
+participant "Node" as node
+participant "Topology" as topology
+participant "Partitioning Strategy" as strategy
+participant "Inference Engine" as engine
+participant "Shard Downloader" as downloader
+participant "Peer Nodes" as peers
+participant "Model Repository" as repo
+
+' Distributed Inference Sequence
+
+' 1. Initial Request
+User -> api : POST /v1/chat/completions
+activate api
+api -> node : process_prompt(shard, prompt)
+activate node
+
+' 2. Network Analysis
+node -> topology : get_current_topology()
+topology --> node : nodes & capabilities
+
+node -> strategy : partition(topology)
+strategy --> node : List<Partition>
+
+' 3. Model Loading
+node -> downloader : ensure_shard(shard)
+downloader -> repo : Download model shard
+repo --> downloader : Model files
+downloader --> node : Local model path
+
+' 4. Local Inference
+node -> engine : load_model_shard()
+node -> engine : infer_prompt(request_id, shard, prompt)
+
+' 5. Multi-node Processing
+loop For each partition
+  alt Local partition
+    node -> engine : process_shard(shard)
+    engine --> node : intermediate_result
+  else Remote partition
+    node -> peers : send_tensor(peer, shard, data)
+    activate peers
+    peers -> peers : process_shard(shard)
+    peers --> node : processed_result
+    deactivate peers
+  end
+end
+
+' 6. Result Aggregation
+node -> node : aggregate_results()
+node -> api : final_result
+deactivate node
+api --> User : JSON response
+deactivate api
+
+' 7. Status Updates
+node -> node : on_token callback
+node -> node : on_opaque_status callback
+
+@enduml

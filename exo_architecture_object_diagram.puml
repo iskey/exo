@@ -1,0 +1,98 @@
+@startuml
+!define RECTANGLE class
+
+' Main Classes and Objects
+package "Exo System Architecture" {
+
+  ' Core Node System
+  object "main" as main <<entry point>>
+  object "node: Node" as node <<core orchestrator>>
+  object "topology: Topology" as topology <<network state>>
+  object "topology_viz: TopologyViz" as topology_viz <<visualization>>
+
+  ' Networking Layer
+  object "discovery: UDPDiscovery" as udp_discovery <<service discovery>>
+  object "discovery: TailscaleDiscovery" as tailscale_discovery <<service discovery>>
+  object "discovery: ManualDiscovery" as manual_discovery <<service discovery>>
+  object "server: GRPCServer" as grpc_server <<network server>>
+  object "peer_handles: List<PeerHandle>" as peer_handles <<connected peers>>
+
+  ' Inference Layer
+  object "inference_engine: InferenceEngine" as inference_engine <<abstract base>>
+  object "mlx_engine: MLXDynamicShardInferenceEngine" as mlx_engine <<MLX inference>>
+  object "tinygrad_engine: TinygradDynamicShardInferenceEngine" as tinygrad_engine <<Tinygrad inference>>
+  object "dummy_engine: DummyInferenceEngine" as dummy_engine <<Test inference>>
+
+  ' API Layer
+  object "api: ChatGPTAPI" as chatgpt_api <<REST API>>
+  object "shard_downloader: ShardDownloader" as shard_downloader <<model management>>
+
+  ' Data Objects
+  object "shard: Shard" as shard <<model partition>>
+  object "partition_strategy: RingMemoryWeightedPartitioningStrategy" as partition_strategy <<partitioning>>
+  object "device_capabilities: DeviceCapabilities" as device_capabilities <<hardware info>>
+  object "partitions: List<Partition>" as partitions <<shard partitions>>
+
+}
+
+' Relationships and Connections
+main --> node : creates & manages
+main --> topology_viz : creates (optional)
+main --> chatgpt_api : creates
+
+node --> topology : manages network state
+node --> inference_engine : uses for inference
+node --> discovery : uses for peer discovery
+node --> server : provides network interface
+node --> shard_downloader : manages model downloads
+node --> partition_strategy : uses for partitioning
+node --> topology_viz : updates visualization
+
+discovery --> peer_handles : maintains peer connections
+discovery --> device_capabilities : broadcasts capabilities
+
+server --> node : serves node functionality
+
+inference_engine --> shard : operates on
+inference_engine --> shard_downloader : downloads shards
+
+mlx_engine --|> inference_engine : implements
+tinygrad_engine --|> inference_engine : implements  
+dummy_engine --|> inference_engine : implements
+
+partition_strategy --> topology : analyzes network
+partition_strategy --> partitions : generates
+partitions --> shard : maps to
+
+chatgpt_api --> node : uses for processing
+chatgpt_api --> inference_engine : identifies engine type
+
+' Network topology relationships
+topology --> device_capabilities : contains node capabilities
+topology --> partitions : generates based on
+
+' Service discovery types
+udp_discovery --|> discovery : implements
+tailscale_discovery --|> discovery : implements
+manual_discovery --|> discovery : implements
+
+' Key object interactions
+node o-- topology : has-a (composition)
+node o-- inference_engine : has-a
+node o-- discovery : has-a
+node o-- server : has-a
+node o-- shard_downloader : has-a
+node o-- partition_strategy : has-a
+
+shard_downloader o-- shard : manages
+inference_engine o-- shard : processes
+
+' Callback systems
+node --> node.on_token : provides callback system
+node --> node.on_opaque_status : provides status callbacks
+
+' Visualization updates
+topology_viz --> topology : displays
+topology_viz --> partitions : displays
+
+@enduml

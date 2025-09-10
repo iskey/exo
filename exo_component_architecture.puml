@@ -1,0 +1,115 @@
+@startuml
+!define RECTANGLE class
+
+title Exo System Component Architecture
+
+package "Application Layer" {
+  [main.py] as main
+  [ChatGPT API] as api
+  [CLI Interface] as cli
+}
+
+package "Orchestration Layer" {
+  [Node] as node
+  [Topology Management] as topology
+  [Partitioning Strategy] as partitioning
+  [Callback System] as callbacks
+}
+
+package "Network Layer" {
+  [GRPC Server] as grpc_server
+  [Discovery Services] as discovery
+  [Peer Management] as peers
+  
+  package "Discovery Implementations" {
+    [UDP Discovery] as udp
+    [Tailscale Discovery] as tailscale
+    [Manual Discovery] as manual
+  }
+}
+
+package "Inference Layer" {
+  [Inference Engine] as engine
+  [MLX Engine] as mlx
+  [TinyGrad Engine] as tinygrad
+  [Dummy Engine] as dummy
+}
+
+package "Model Management" {
+  [Shard Downloader] as downloader
+  [Model Repository] as repository
+  [Shard Management] as shards
+}
+
+package "Visualization Layer" {
+  [Topology Viz] as viz
+  [Console UI] as console
+}
+
+package "Data Objects" {
+  [Shard] as shard_obj
+  [Partition] as partition_obj
+  [Topology] as topology_obj
+  [DeviceCapabilities] as capabilities
+  [PeerHandle] as peer_handle
+}
+
+' Layer Dependencies
+main --> node : uses
+main --> api : creates
+main --> cli : provides
+
+api --> node : delegates
+cli --> node : delegates
+
+node --> topology : manages
+node --> partitioning : uses
+node --> discovery : uses
+node --> grpc_server : provides
+node --> engine : uses
+node --> downloader : uses
+node --> callbacks : provides
+node --> viz : updates
+
+discovery --> peers : manages
+udp --|> discovery : implements
+tailscale --|> discovery : implements
+manual --|> discovery : implements
+
+engine --> shards : operates on
+mlx --|> engine : implements
+tinygrad --|> engine : implements
+dummy --|> engine : implements
+
+downloader --> repository : downloads from
+downloader --> shards : manages
+
+viz --> topology : displays
+viz --> console : renders
+
+' Object Relationships
+partitioning --> partition_obj : creates
+node --> shard_obj : uses
+discovery --> peer_handle : manages
+node --> topology_obj : maintains
+node --> capabilities : broadcasts
+
+' Key Interactions
+node -[hidden]-> discovery
+node -[hidden]-> engine
+node -[hidden]-> downloader
+
+note top of node : Central orchestrator that coordinates
+all system components and manages
+distributed inference across the cluster
+
+note right of discovery : Handles peer discovery and
+maintains cluster membership
+
+note bottom of engine : Performs actual model inference
+using different backend implementations
+
+note left of downloader : Manages model shard downloads
+and caching from repositories
+
+@enduml

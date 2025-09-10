@@ -1,0 +1,107 @@
+@startuml
+!define RECTANGLE class
+
+title Exo Core Object Interaction Flow
+
+' Main System Objects
+actor User
+participant "main.py\nEntry Point" as main
+participant "Node\nOrchestrator" as node
+participant "Topology\nNetwork State" as topology
+participant "Discovery\nService Discovery" as discovery
+participant "GRPCServer\nNetwork Interface" as server
+participant "InferenceEngine\n(MLX/TinyGrad)" as engine
+participant "ShardDownloader\nModel Manager" as downloader
+participant "ChatGPTAPI\nREST Interface" as api
+participant "TopologyViz\nVisualization" as viz
+
+' External Resources
+database "Model\nRepository" as models
+participant "Peer Nodes" as peers
+
+' Flow Diagram
+User -> main : Start application
+activate main
+main -> node : Create Node instance
+activate node
+
+main -> downloader : Create ShardDownloader
+node -> topology : Initialize Topology
+node -> discovery : Initialize Discovery (UDP/Tailscale/Manual)
+node -> server : Initialize GRPCServer
+node -> engine : Initialize InferenceEngine
+node -> viz : Initialize TopologyViz (optional)
+
+main -> discovery : Start discovery
+discovery -> peers : Discover peer nodes
+peers --> discovery : Return peer handles
+discovery -> topology : Update network topology
+
+main -> server : Start server
+server -> node : Register node services
+
+main -> api : Create ChatGPTAPI
+api -> node : Register with node
+
+' User Interaction Flows
+
+' 1. Model Loading Flow
+User -> api : Request model inference
+api -> node : process_prompt(shard, prompt)
+node -> downloader : ensure_shard(shard)
+downloader -> models : Download model shards
+models --> downloader : Return model files
+downloader --> node : Return local path
+
+' 2. Partitioning Flow
+node -> topology : Get current network state
+topology --> node : Return nodes & capabilities
+node -> node : Calculate partitions based on memory
+node -> engine : Load shard for partition
+
+' 3. Distributed Inference Flow
+node -> engine : infer_prompt(request_id, shard, prompt)
+engine -> engine : Process shard locally
+engine -> node : Return intermediate results
+
+node -> peers : send_tensor(peer, shard, data)
+peers --> node : Return processed results
+
+' 4. Status Updates
+node -> viz : Update topology visualization
+viz --> User : Display network state
+
+' 5. Callback System
+engine -> node : on_token callback
+discovery -> node : on_peer_discovery callback
+server -> node : on_request callback
+
+' Object Lifecycle Notes
+note right of node : Central orchestrator that
+manages all other components
+
+note right of topology : Maintains network state
+including all nodes and
+peer connections
+
+note right of discovery : Handles peer discovery
+via UDP, Tailscale, or
+manual configuration
+
+note right of engine : Performs actual inference
+using MLX or TinyGrad
+backend
+
+' Key Object Relationships
+node --> topology : manages network state
+node --> discovery : uses for peer discovery
+node --> server : provides network interface
+node --> engine : uses for inference
+node --> downloader : manages model shards
+node --> viz : updates visualization
+
+discovery --> topology : updates network state
+engine --> downloader : requests model shards
+api --> node : delegates processing
+
+@enduml

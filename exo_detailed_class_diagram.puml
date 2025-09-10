@@ -1,0 +1,284 @@
+@startuml
+!define RECTANGLE class
+
+' Abstract Base Classes
+abstract class InferenceEngine {
+  +session: dict
+  +encode(shard: Shard, prompt: str): np.ndarray <<abstract>>
+  +sample(x: np.ndarray): np.ndarray <<abstract>>
+  +decode(shard: Shard, tokens: np.ndarray): str <<abstract>>
+  +infer_tensor(request_id: str, shard: Shard, input_data: np.ndarray, inference_state: dict): tuple <<abstract>>
+  +infer_prompt(request_id: str, shard: Shard, prompt: str, inference_state: dict): tuple
+  +load_checkpoint(shard: Shard, path: str): void <<abstract>>
+  +save_checkpoint(shard: Shard, path: str): void
+}
+
+abstract class Discovery {
+  +start(): void <<abstract>>
+  +stop(): void <<abstract>>
+  +discover_peers(wait_for_peers: int): List[PeerHandle] <<abstract>>
+}
+
+abstract class PeerHandle {
+  +id(): str <<abstract>>
+  +addr(): str <<abstract>>
+  +description(): str <<abstract>>
+  +device_capabilities(): DeviceCapabilities <<abstract>>
+  +connect(): void <<abstract>>
+  +is_connected(): bool <<abstract>>
+  +disconnect(): void <<abstract>>
+  +health_check(): bool <<abstract>>
+  +send_prompt(shard: Shard, prompt: str, request_id: str): np.array <<abstract>>
+  +send_tensor(shard: Shard, tensor: np.array, request_id: str): np.array <<abstract>>
+  +send_result(request_id: str, result: List[int], is_finished: bool): void <<abstract>>
+  +collect_topology(visited: set, max_depth: int): Topology <<abstract>>
+}
+
+' Concrete Inference Engines
+class MLXDynamicShardInferenceEngine {
+  -shard_downloader: ShardDownloader
+  -shard: Shard
+  -model: Any
+  -tokenizer: Any
+  -caches: OrderedDict
+  -session: dict
+  -_mlx_thread: ThreadPoolExecutor
+  +encode(shard: Shard, prompt: str): np.ndarray
+  +sample(x: np.ndarray): np.ndarray
+  +decode(shard: Shard, tokens: np.ndarray): str
+  +infer_tensor(request_id: str, shard: Shard, input_data: np.ndarray, inference_state: dict): tuple
+  +load_checkpoint(shard: Shard, path: str): void
+  +ensure_shard(shard: Shard): void
+  +train(request_id: str, shard: Shard, inputs, targets, lengths, loss, opt, lr): tuple
+}
+
+class TinygradDynamicShardInferenceEngine {
+  -shard_downloader: ShardDownloader
+  -shard: Shard
+  -model: Transformer
+  -tokenizer: Any
+  -states: OrderedDict
+  -executor: ThreadPoolExecutor
+  +encode(shard: Shard, prompt: str): np.ndarray
+  +sample(x: np.ndarray): np.ndarray
+  +decode(shard: Shard, tokens: np.ndarray): str
+  +infer_tensor(request_id: str, shard: Shard, input_data: np.ndarray, inference_state: dict): tuple
+  +load_checkpoint(shard: Shard, path: str): void
+  +evaluate(request_id: str, shard: Shard, inputs, targets, lengths, loss): np.array
+  +train(request_id: str, shard: Shard, inputs, targets, lengths, loss, opt, lr): tuple
+}
+
+class DummyInferenceEngine {
+  -shard: Shard
+  -vocab_size: int
+  -hidden_size: int
+  -tokenizer: DummyTokenizer
+  +encode(shard: Shard, prompt: str): np.ndarray
+  +sample(x: np.ndarray): np.ndarray
+  +decode(shard: Shard, tokens: np.ndarray): str
+  +infer_tensor(request_id: str, shard: Shard, input_data: np.ndarray, inference_state: dict): tuple
+}
+
+' Discovery Implementations
+class UDPDiscovery {
+  -node_id: str
+  -node_port: int
+  -listen_port: int
+  -broadcast_port: int
+  -known_peers: Dict[str, Tuple]
+  -broadcast_task: Task
+  -listen_task: Task
+  +start(): void
+  +stop(): void
+  +discover_peers(wait_for_peers: int): List[PeerHandle]
+}
+
+class TailscaleDiscovery {
+  -node_id: str
+  -node_port: int
+  -tailscale_api_key: str
+  -tailnet: str
+  -known_peers: Dict[str, Tuple]
+  -discovery_task: Task
+  -cleanup_task: Task
+  +start(): void
+  +stop(): void
+  +discover_peers(wait_for_peers: int): List[PeerHandle]
+}
+
+class ManualDiscovery {
+  -network_config_path: str
+  -node_id: str
+  -known_peers: Dict[str, PeerHandle]
+  -listen_task: Task
+  +start(): void
+  +stop(): void
+  +discover_peers(wait_for_peers: int): List[PeerHandle]
+}
+
+' Server Implementation
+class GRPCServer {
+  -node: Node
+  -host: str
+  -port: int
+  -server: grpc.aio.server
+  +start(): void
+  +stop(): void
+  +SendPrompt(request, context): response
+  +SendTensor(request, context): response
+  +SendResult(request, context): response
+  +CollectTopology(request, context): response
+}
+
+class GRPCPeerHandle {
+  -peer_id: str
+  -address: str
+  -description: str
+  -device_capabilities: DeviceCapabilities
+  -channel: grpc.aio.Channel
+  +id(): str
+  +addr(): str
+  +description(): str
+  +device_capabilities(): DeviceCapabilities
+  +connect(): void
+  +is_connected(): bool
+  +disconnect(): void
+  +send_prompt(shard: Shard, prompt: str, request_id: str): np.array
+  +send_tensor(shard: Shard, tensor: np.array, request_id: str): np.array
+}
+
+' Core Node Class
+class Node {
+  -id: str
+  -server: Server
+  -inference_engine: InferenceEngine
+  -discovery: Discovery
+  -shard_downloader: ShardDownloader
+  -topology: Topology
+  -partitioning_strategy: PartitioningStrategy
+  -topology_viz: TopologyViz
+  -peers: List[PeerHandle]
+  -device_capabilities: DeviceCapabilities
+  -max_generate_tokens: int
+  -on_token: AsyncCallbackSystem
+  -on_opaque_status: AsyncCallbackSystem
+  +process_prompt(shard: Shard, prompt: str, request_id: str): void
+  +enqueue_example(shard: Shard, inputs, targets, lengths, train: bool): void
+  +current_topology: Topology
+}
+
+' API Layer
+class ChatGPTAPI {
+  -node: Node
+  -inference_engine_classname: str
+  -app: web.Application
+  -prompts: PrefixDict
+  -stream_tasks: Dict[str, Task]
+  -token_queues: defaultdict
+  +handle_get_models(request): response
+  +handle_chat_completion(request): response
+  +handle_tokens(request_id, tokens, is_finished): void
+}
+
+' Data Classes
+class Shard {
+  +model_id: str
+  +start_layer: int
+  +end_layer: int
+  +n_layers: int
+  +is_first_layer(): bool
+  +is_last_layer(): bool
+  +get_layer_count(): int
+  +to_dict(): dict
+  +from_dict(data: dict): Shard
+}
+
+class Topology {
+  -nodes: Dict[str, DeviceCapabilities]
+  -peer_graph: Dict[str, Set[PeerConnection>>
+  -active_node_id: str
+  +update_node(node_id: str, capabilities: DeviceCapabilities): void
+  +add_edge(from_id: str, to_id: str, description: str): void
+  +merge(peer_node_id: str, other: Topology): void
+  +to_json(): dict
+}
+
+class Partition {
+  +node_id: str
+  +start: float
+  +end: float
+}
+
+class DeviceCapabilities {
+  +model: str
+  +chip: str
+  +memory: int
+  +flops: DeviceFlops
+  +to_dict(): dict
+}
+
+class DeviceFlops {
+  +fp32: float
+  +fp16: float
+  +int8: float
+  +to_dict(): dict
+}
+
+' Partitioning Strategy
+class RingMemoryWeightedPartitioningStrategy {
+  +partition(topology: Topology): List[Partition]
+}
+
+' Shard Management
+class ShardDownloader {
+  -repo: str
+  -download_path: str
+  +ensure_shard(shard: Shard, engine_class: str): str
+  +on_progress: AsyncCallbackSystem
+}
+
+' Visualization
+class TopologyViz {
+  -topology: Topology
+  -partitions: List[Partition]
+  -console: Console
+  -layout: Layout
+  +update_prompt(request_id: str, prompt: str): void
+  +update_download_progress(node_id: str, progress: RepoProgressEvent): void
+}
+
+' Inheritance Relationships
+InferenceEngine <|-- MLXDynamicShardInferenceEngine
+InferenceEngine <|-- TinygradDynamicShardInferenceEngine
+InferenceEngine <|-- DummyInferenceEngine
+
+Discovery <|-- UDPDiscovery
+Discovery <|-- TailscaleDiscovery
+Discovery <|-- ManualDiscovery
+
+PeerHandle <|-- GRPCPeerHandle
+
+' Composition Relationships
+Node *-- InferenceEngine
+Node *-- Discovery
+Node *-- Server
+Node *-- ShardDownloader
+Node *-- Topology
+Node *-- PartitioningStrategy
+Node *-- TopologyViz
+
+Topology *-- DeviceCapabilities
+Topology *-- PeerConnection
+
+ShardDownloader *-- Shard
+InferenceEngine *-- Shard
+
+RingMemoryWeightedPartitioningStrategy --|> PartitioningStrategy
+
+' Key Object Interactions
+Node --> Shard : uses for inference
+Node --> Partition : maps to shards
+Node --> PeerHandle : communicates with
+ChatGPTAPI --> Node : delegates processing
+
+@enduml
