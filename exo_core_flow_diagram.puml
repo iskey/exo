@@ -77,20 +77,28 @@ discovery -> node : on_peer_discovery callback
 server -> node : on_request callback
 
 ' Object Lifecycle Notes
-note right of node : Central orchestrator that
-manages all other components
+note right of node
+	Central orchestrator that
+	manages all other components
+end note
 
-note right of topology : Maintains network state
+note right of topology
+Maintains network state
 including all nodes and
 peer connections
+end note
 
-note right of discovery : Handles peer discovery
+note right of discovery
+Handles peer discovery
 via UDP, Tailscale, or
 manual configuration
+end note
 
-note right of engine : Performs actual inference
+note right of engine
+Performs actual inference
 using MLX or TinyGrad
 backend
+end note
 
 ' Key Object Relationships
 node --> topology : manages network state

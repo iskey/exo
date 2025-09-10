@@ -1,6 +1,13 @@
 @startuml
 !define RECTANGLE class
 
+
+left to right direction
+
+skinparam linetype ortho
+skinparam nodesep 100
+skinparam ranksep 100
+
 ' Main Classes and Objects
 package "Exo System Architecture" {
 

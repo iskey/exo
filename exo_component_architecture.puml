@@ -3,6 +3,13 @@
 
 title Exo System Component Architecture
 
+
+left to right direction
+
+skinparam linetype ortho
+skinparam nodesep 100
+skinparam ranksep 100
+
 package "Application Layer" {
   [main.py] as main
   [ChatGPT API] as api
@@ -99,17 +106,25 @@ node -[hidden]-> discovery
 node -[hidden]-> engine
 node -[hidden]-> downloader
 
-note top of node : Central orchestrator that coordinates
-all system components and manages
-distributed inference across the cluster
+note top of node
+	Central orchestrator that coordinates
+	all system components and manages
+	distributed inference across the cluster
+end note
 
-note right of discovery : Handles peer discovery and
-maintains cluster membership
+note right of discovery
+	Handles peer discovery and
+	maintains cluster membership
+end note
 
-note bottom of engine : Performs actual model inference
-using different backend implementations
+note bottom of engine
+	Performs actual model inference
+	using different backend implementations
+end note
 
-note left of downloader : Manages model shard downloads
-and caching from repositories
+note left of downloader
+	Manages model shard downloads
+	and caching from repositories
+end note
 
 @enduml
