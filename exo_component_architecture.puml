@@ -1,14 +1,24 @@
 @startuml
 !define RECTANGLE class
 
-title Exo System Component Architecture
+' Color definitions for component relationships
+!define APPLICATION_COLOR #FF6B6B
+!define ORCHESTRATION_COLOR #4ECDC4
+!define NETWORK_COLOR #45B7D1
+!define INFERENCE_COLOR #96CEB4
+!define MANAGEMENT_COLOR #FFEAA7
+!define VISUALIZATION_COLOR #DDA0DD
+!define DATA_COLOR #F8C471
+!define IMPLEMENTATION_COLOR #BB8FCE
 
+title Exo System Component Architecture
 
 left to right direction
 
 skinparam linetype ortho
 skinparam nodesep 100
 skinparam ranksep 100
+skinparam ArrowThickness 2
 
 package "Application Layer" {
   [main.py] as main
@@ -61,45 +71,45 @@ package "Data Objects" {
   [PeerHandle] as peer_handle
 }
 
-' Layer Dependencies
-main --> node : uses
-main --> api : creates
-main --> cli : provides
+' Layer Dependencies - Color coded by layer type
+main -[APPLICATION_COLOR]--> node : uses
+main -[APPLICATION_COLOR]--> api : creates
+main -[APPLICATION_COLOR]--> cli : provides
 
-api --> node : delegates
-cli --> node : delegates
+api -[APPLICATION_COLOR]--> node : delegates
+cli -[APPLICATION_COLOR]--> node : delegates
 
-node --> topology : manages
-node --> partitioning : uses
-node --> discovery : uses
-node --> grpc_server : provides
-node --> engine : uses
-node --> downloader : uses
-node --> callbacks : provides
-node --> viz : updates
+node -[ORCHESTRATION_COLOR]--> topology : manages
+node -[ORCHESTRATION_COLOR]--> partitioning : uses
+node -[NETWORK_COLOR]--> discovery : uses
+node -[NETWORK_COLOR]--> grpc_server : provides
+node -[INFERENCE_COLOR]--> engine : uses
+node -[MANAGEMENT_COLOR]--> downloader : uses
+node -[ORCHESTRATION_COLOR]--> callbacks : provides
+node -[VISUALIZATION_COLOR]--> viz : updates
 
-discovery --> peers : manages
-udp --|> discovery : implements
-tailscale --|> discovery : implements
-manual --|> discovery : implements
+discovery -[NETWORK_COLOR]--> peers : manages
+udp -[IMPLEMENTATION_COLOR]--|> discovery : implements
+tailscale -[IMPLEMENTATION_COLOR]--|> discovery : implements
+manual -[IMPLEMENTATION_COLOR]--|> discovery : implements
 
-engine --> shards : operates on
-mlx --|> engine : implements
-tinygrad --|> engine : implements
-dummy --|> engine : implements
+engine -[INFERENCE_COLOR]--> shards : operates on
+mlx -[IMPLEMENTATION_COLOR]--|> engine : implements
+tinygrad -[IMPLEMENTATION_COLOR]--|> engine : implements
+dummy -[IMPLEMENTATION_COLOR]--|> engine : implements
 
-downloader --> repository : downloads from
-downloader --> shards : manages
+downloader -[MANAGEMENT_COLOR]--> repository : downloads from
+downloader -[MANAGEMENT_COLOR]--> shards : manages
 
-viz --> topology : displays
-viz --> console : renders
+viz -[VISUALIZATION_COLOR]--> topology : displays
+viz -[VISUALIZATION_COLOR]--> console : renders
 
-' Object Relationships
-partitioning --> partition_obj : creates
-node --> shard_obj : uses
-discovery --> peer_handle : manages
-node --> topology_obj : maintains
-node --> capabilities : broadcasts
+' Object Relationships - Data layer
+partitioning -[DATA_COLOR]--> partition_obj : creates
+node -[DATA_COLOR]--> shard_obj : uses
+discovery -[NETWORK_COLOR]--> peer_handle : manages
+node -[DATA_COLOR]--> topology_obj : maintains
+node -[DATA_COLOR]--> capabilities : broadcasts
 
 ' Key Interactions
 node -[hidden]-> discovery

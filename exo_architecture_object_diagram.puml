@@ -1,12 +1,23 @@
 @startuml
 !define RECTANGLE class
 
+' Color definitions for different relationship types
+!define CREATION_COLOR #FF6B6B
+!define COMPOSITION_COLOR #4ECDC4
+!define INHERITANCE_COLOR #45B7D1
+!define USAGE_COLOR #96CEB4
+!define MANAGEMENT_COLOR #FFEAA7
+!define CALLBACK_COLOR #DDA0DD
 
 left to right direction
 
 skinparam linetype ortho
 skinparam nodesep 100
 skinparam ranksep 100
+
+' Configure line colors
+skinparam ArrowColor black
+skinparam ArrowThickness 2
 
 ' Main Classes and Objects
 package "Exo System Architecture" {
@@ -42,64 +53,65 @@ package "Exo System Architecture" {
 
 }
 
-' Relationships and Connections
-main --> node : creates & manages
-main --> topology_viz : creates (optional)
-main --> chatgpt_api : creates
+' Relationships and Connections - Color coded by type
+main -[CREATION_COLOR]-> node : creates & manages
+main -[CREATION_COLOR]-> topology_viz : creates (optional)
+main -[CREATION_COLOR]-> chatgpt_api : creates
 
-node --> topology : manages network state
-node --> inference_engine : uses for inference
-node --> discovery : uses for peer discovery
-node --> server : provides network interface
-node --> shard_downloader : manages model downloads
-node --> partition_strategy : uses for partitioning
-node --> topology_viz : updates visualization
+node -[MANAGEMENT_COLOR]-> topology : manages network state
+node -[USAGE_COLOR]-> inference_engine : uses for inference
+node -[USAGE_COLOR]-> discovery : uses for peer discovery
+node -[MANAGEMENT_COLOR]-> server : provides network interface
+node -[MANAGEMENT_COLOR]-> shard_downloader : manages model downloads
+node -[USAGE_COLOR]-> partition_strategy : uses for partitioning
+node -[MANAGEMENT_COLOR]-> topology_viz : updates visualization
 
-discovery --> peer_handles : maintains peer connections
-discovery --> device_capabilities : broadcasts capabilities
+discovery -[MANAGEMENT_COLOR]-> peer_handles : maintains peer connections
+discovery -[MANAGEMENT_COLOR]-> device_capabilities : broadcasts capabilities
 
-server --> node : serves node functionality
+server -[MANAGEMENT_COLOR]-> node : serves node functionality
 
-inference_engine --> shard : operates on
-inference_engine --> shard_downloader : downloads shards
+inference_engine -[USAGE_COLOR]-> shard : operates on
+inference_engine -[MANAGEMENT_COLOR]-> shard_downloader : downloads shards
 
-mlx_engine --|> inference_engine : implements
-tinygrad_engine --|> inference_engine : implements  
-dummy_engine --|> inference_engine : implements
+' Inheritance relationships - blue
+mlx_engine -[INHERITANCE_COLOR]-|> inference_engine : implements
+tinygrad_engine -[INHERITANCE_COLOR]-|> inference_engine : implements  
+dummy_engine -[INHERITANCE_COLOR]-|> inference_engine : implements
 
-partition_strategy --> topology : analyzes network
-partition_strategy --> partitions : generates
-partitions --> shard : maps to
+partition_strategy -[MANAGEMENT_COLOR]-> topology : analyzes network
+partition_strategy -[MANAGEMENT_COLOR]-> partitions : generates
+partitions -[MANAGEMENT_COLOR]-> shard : maps to
 
-chatgpt_api --> node : uses for processing
-chatgpt_api --> inference_engine : identifies engine type
+chatgpt_api -[USAGE_COLOR]-> node : uses for processing
+chatgpt_api -[USAGE_COLOR]-> inference_engine : identifies engine type
 
-' Network topology relationships
-topology --> device_capabilities : contains node capabilities
-topology --> partitions : generates based on
+' Network topology relationships - green
+topology -[MANAGEMENT_COLOR]-> device_capabilities : contains node capabilities
+topology -[MANAGEMENT_COLOR]-> partitions : generates based on
 
-' Service discovery types
-udp_discovery --|> discovery : implements
-tailscale_discovery --|> discovery : implements
-manual_discovery --|> discovery : implements
+' Service discovery types - blue inheritance
+udp_discovery -[INHERITANCE_COLOR]-|> discovery : implements
+tailscale_discovery -[INHERITANCE_COLOR]-|> discovery : implements
+manual_discovery -[INHERITANCE_COLOR]-|> discovery : implements
 
-' Key object interactions
-node o-- topology : has-a (composition)
-node o-- inference_engine : has-a
-node o-- discovery : has-a
-node o-- server : has-a
-node o-- shard_downloader : has-a
-node o-- partition_strategy : has-a
+' Key object interactions - teal composition
+node o-[COMPOSITION_COLOR]- topology : has-a (composition)
+node o-[COMPOSITION_COLOR]- inference_engine : has-a
+node o-[COMPOSITION_COLOR]- discovery : has-a
+node o-[COMPOSITION_COLOR]- server : has-a
+node o-[COMPOSITION_COLOR]- shard_downloader : has-a
+node o-[COMPOSITION_COLOR]- partition_strategy : has-a
 
-shard_downloader o-- shard : manages
-inference_engine o-- shard : processes
+shard_downloader o-[COMPOSITION_COLOR]- shard : manages
+inference_engine o-[COMPOSITION_COLOR]- shard : processes
 
-' Callback systems
-node --> node.on_token : provides callback system
-node --> node.on_opaque_status : provides status callbacks
+' Callback systems - purple
+node -[CALLBACK_COLOR]-> node.on_token : provides callback system
+node -[CALLBACK_COLOR]-> node.on_opaque_status : provides status callbacks
 
-' Visualization updates
-topology_viz --> topology : displays
-topology_viz --> partitions : displays
+' Visualization updates - orange
+topology_viz -[MANAGEMENT_COLOR]-> topology : displays
+topology_viz -[MANAGEMENT_COLOR]-> partitions : displays
 
 @enduml

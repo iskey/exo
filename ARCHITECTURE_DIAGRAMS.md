@@ -4,6 +4,17 @@
 
 ## 图表概览
 
+### 颜色编码说明
+所有图表都使用统一的颜色编码系统来区分不同类型的关系：
+
+- **🔴 红色 (#FF6B6B)**: 用户交互和创建关系
+- **🟢 青色 (#4ECDC4)**: 系统管理和组合关系
+- **🔵 蓝色 (#45B7D1)**: 继承和实现关系
+- **🟢 绿色 (#96CEB4)**: 网络通信和数据流
+- **🟡 黄色 (#FFEAA7)**: 引擎操作和推理流程
+- **🟣 紫色 (#DDA0DD)**: 回调系统和异步通信
+- **🟠 橙色 (#F8C471)**: 数据管理和映射关系
+
 ### 1. 核心对象图 (`exo_architecture_object_diagram.puml`)
 展示系统中主要对象实例及其关系：
 - **Node**: 中央协调器
@@ -13,12 +24,26 @@
 - **Shard**: 模型分片
 - **ChatGPTAPI**: REST API接口
 
+**颜色区分**：
+- 红色线条：对象创建关系
+- 青色线条：组合关系(has-a)
+- 蓝色线条：继承关系
+- 绿色线条：网络通信
+- 紫色线条：回调系统
+
 ### 2. 详细类图 (`exo_detailed_class_diagram.puml`)
 包含完整的类继承关系和关键方法：
 - 抽象基类：InferenceEngine, Discovery, PeerHandle
-- 具体实现：MLXDynamicShardInferenceEngine, TinygradDynamicShardInferenceEngine
+- 具体实现类：MLXDynamicShardInferenceEngine, TinygradDynamicShardInferenceEngine
 - 网络层：GRPCServer, 各种Discovery实现
 - 数据对象：Shard, Topology, Partition, DeviceCapabilities
+
+**颜色区分**：
+- 蓝色背景：抽象类
+- 绿色背景：具体实现类
+- 蓝色线条：继承关系
+- 青色线条：组合关系
+- 黄色线条：使用关系
 
 ### 3. 核心流程图 (`exo_core_flow_diagram.puml`)
 展示对象间的交互消息流：
@@ -26,6 +51,13 @@
 - 模型加载流程
 - 分布式推理流程
 - 状态更新机制
+
+**颜色区分**：
+- 红色：用户交互
+- 青色：系统管理
+- 蓝色：数据流
+- 绿色：网络通信
+- 紫色：异步回调
 
 ### 4. 组件架构图 (`exo_component_architecture.puml`)
 分层架构视角：
@@ -36,6 +68,14 @@
 - 模型管理层：Shard下载和管理
 - 可视化层：Topology可视化
 
+**颜色区分**：
+- 红色：应用层依赖
+- 青色：编排层管理
+- 蓝色：网络层通信
+- 绿色：推理层操作
+- 黄色：模型管理
+- 紫色：可视化更新
+
 ### 5. 分布式推理序列图 (`exo_distributed_inference_sequence.puml`)
 完整的分布式推理流程：
 - 用户请求处理
@@ -43,6 +83,14 @@
 - 模型分片加载
 - 多节点并行处理
 - 结果聚合返回
+
+**颜色区分**：
+- 红色：用户请求
+- 青色：API处理
+- 蓝色：网络分析
+- 黄色：引擎推理
+- 绿色：节点通信
+- 紫色：模型下载
 
 ## 关键设计模式
 

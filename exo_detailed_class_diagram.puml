@@ -1,7 +1,20 @@
 @startuml
 !define RECTANGLE class
 
-' Abstract Base Classes
+' Color definitions for different relationship types
+!define ABSTRACT_COLOR #E8F4FD
+!define CONCRETE_COLOR #E8F5E8
+!define INHERITANCE_COLOR #45B7D1
+!define COMPOSITION_COLOR #4ECDC4
+!define AGGREGATION_COLOR #96CEB4
+!define USAGE_COLOR #FFEAA7
+!define CALLBACK_COLOR #DDA0DD
+
+skinparam class {
+  BackgroundColor<<abstract>> ABSTRACT_COLOR
+  BackgroundColor<<concrete>> CONCRETE_COLOR
+  ArrowThickness 2
+}
 abstract class InferenceEngine {
   +session: dict
   +encode(shard: Shard, prompt: str): np.ndarray <<abstract>>
@@ -247,38 +260,38 @@ class TopologyViz {
   +update_download_progress(node_id: str, progress: RepoProgressEvent): void
 }
 
-' Inheritance Relationships
-InferenceEngine <|-- MLXDynamicShardInferenceEngine
-InferenceEngine <|-- TinygradDynamicShardInferenceEngine
-InferenceEngine <|-- DummyInferenceEngine
+' Inheritance Relationships - Color coded
+InferenceEngine -[#INHERITANCE_COLOR]--|> MLXDynamicShardInferenceEngine : implements
+InferenceEngine -[#INHERITANCE_COLOR]--|> TinygradDynamicShardInferenceEngine : implements
+InferenceEngine -[#INHERITANCE_COLOR]--|> DummyInferenceEngine : implements
 
-Discovery <|-- UDPDiscovery
-Discovery <|-- TailscaleDiscovery
-Discovery <|-- ManualDiscovery
+Discovery -[#INHERITANCE_COLOR]--|> UDPDiscovery : implements
+Discovery -[#INHERITANCE_COLOR]--|> TailscaleDiscovery : implements
+Discovery -[#INHERITANCE_COLOR]--|> ManualDiscovery : implements
 
-PeerHandle <|-- GRPCPeerHandle
+PeerHandle -[#INHERITANCE_COLOR]--|> GRPCPeerHandle : implements
 
-' Composition Relationships
-Node *-- InferenceEngine
-Node *-- Discovery
-Node *-- Server
-Node *-- ShardDownloader
-Node *-- Topology
-Node *-- PartitioningStrategy
-Node *-- TopologyViz
+RingMemoryWeightedPartitioningStrategy -[#INHERITANCE_COLOR]--|> PartitioningStrategy
 
-Topology *-- DeviceCapabilities
-Topology *-- PeerConnection
+' Composition Relationships - teal
+Node -[#COMPOSITION_COLOR]*-- InferenceEngine : uses
+Node -[#COMPOSITION_COLOR]*-- Discovery : uses
+Node -[#COMPOSITION_COLOR]*-- Server : has
+Node -[#COMPOSITION_COLOR]*-- ShardDownloader : has
+Node -[#COMPOSITION_COLOR]*-- Topology : manages
+Node -[#COMPOSITION_COLOR]*-- PartitioningStrategy : uses
+Node -[#COMPOSITION_COLOR]*-- TopologyViz : has
 
-ShardDownloader *-- Shard
-InferenceEngine *-- Shard
+Topology -[#COMPOSITION_COLOR]*-- DeviceCapabilities
+Topology -[#COMPOSITION_COLOR]*-- PeerConnection
 
-RingMemoryWeightedPartitioningStrategy --|> PartitioningStrategy
+ShardDownloader -[#COMPOSITION_COLOR]*-- Shard : manages
+InferenceEngine -[#COMPOSITION_COLOR]*-- Shard : uses
 
-' Key Object Interactions
-Node --> Shard : uses for inference
-Node --> Partition : maps to shards
-Node --> PeerHandle : communicates with
-ChatGPTAPI --> Node : delegates processing
+' Usage relationships - yellow
+Node -[#USAGE_COLOR]--> Shard : uses for inference
+Node -[#USAGE_COLOR]--> Partition : maps to shards
+Node -[#USAGE_COLOR]--> PeerHandle : communicates with
+ChatGPTAPI -[#USAGE_COLOR]--> Node : delegates processing
 
 @enduml
